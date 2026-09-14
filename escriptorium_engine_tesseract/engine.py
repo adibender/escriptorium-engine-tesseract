@@ -26,6 +26,7 @@ from pytesseract import Output
 from engines.base import (
     SOURCE_FILE,
     BaseEngine,
+    EngineError,
     EngineSpec,
     Line,
     LineInput,
@@ -37,6 +38,7 @@ from engines.base import (
     SegmentationResult,
     SegmentOptions,
 )
+from engines.imaging import line_box
 
 logger = logging.getLogger(__name__)
 
@@ -49,9 +51,6 @@ DEFAULT_LANGUAGE = "eng"
 
 #: psm 7 = "treat the image as a single text line", which is what recognition is handed
 SINGLE_LINE_PSM = "--psm 7"
-
-#: when a line arrives with a baseline but no mask, guess a band this fraction of the image high
-BASELINE_BAND_RATIO = 0.02
 
 
 class TesseractEngine(BaseEngine):
@@ -169,14 +168,11 @@ class TesseractEngine(BaseEngine):
         self, image, lines: Iterable[LineInput], *, model, options: RecognizeOptions
     ) -> Iterator[RecognitionResult]:
         language, tessdata_dir = self._language_and_tessdata(model)
+        self._require_language(language, tessdata_dir)
         config = self._config(tessdata_dir, SINGLE_LINE_PSM)
-        image_width, image_height = image.size
 
         for line in lines:
-            if not line.baseline:
-                continue
-
-            box = self._crop_box(line, image_width, image_height)
+            box = line_box(line, image.size)
             if box is None:
                 continue
 
@@ -195,27 +191,16 @@ class TesseractEngine(BaseEngine):
             )
 
     @classmethod
-    def _crop_box(cls, line: LineInput, image_width, image_height):
-        """Rectangle to hand tesseract for one line.
+    def _require_language(cls, language, tessdata_dir):
+        """Fail the request, not every line.
 
-        Uses the mask's bounding box when there is one -- note that a slanted or curved line will
-        drag in slivers of its neighbours, which is inherent to feeding a rectangle-oriented engine
-        a baseline-oriented segmentation. With no mask, guess a band around the baseline.
+        Without this a missing language fails each line separately, every failure is skipped as an
+        unreadable line, and the task reports success with an empty transcription.
         """
-        points = list(line.boundary) if line.boundary else None
-        if points:
-            xs = [point[0] for point in points]
-            ys = [point[1] for point in points]
-        else:
-            xs = [point[0] for point in line.baseline]
-            ys = [point[1] for point in line.baseline]
-            band = max(8, image_height * BASELINE_BAND_RATIO)
-            ys = [min(ys) - band, max(ys) + band * 0.25]
-
-        left = max(0, int(min(xs)))
-        top = max(0, int(min(ys)))
-        right = min(image_width, int(max(xs)))
-        bottom = min(image_height, int(max(ys)))
-        if right - left < 2 or bottom - top < 2:
-            return None
-        return (left, top, right, bottom)
+        try:
+            available = pytesseract.get_languages(config=cls._config(tessdata_dir))
+        except Exception as exc:
+            raise EngineError(f"tesseract could not list its languages: {exc}") from exc
+        if language not in available:
+            where = f" in {tessdata_dir}" if tessdata_dir else ""
+            raise EngineError(f"tesseract has no language {language!r}{where}.")
