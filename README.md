@@ -5,24 +5,37 @@ Tesseract as an eScriptorium engine. Installing this package is the entire integ
 
 ## Install
 
-Needs the tesseract binary and at least one language file:
+This is a plugin: it installs *into* an eScriptorium environment, and it needs the tesseract binary
+and at least one language file alongside it — neither of which pip can provide. The provided image
+layers all three onto eScriptorium's own:
+
+```sh
+# ESCRIPTORIUM_IMAGE defaults to registry.gitlab.com/scripta/escriptorium:latest
+docker build -t escriptorium-tesseract:latest .
+```
+
+By hand, inside an existing eScriptorium environment, it is:
 
 ```sh
 apt-get install tesseract-ocr tesseract-ocr-eng tesseract-ocr-deu tesseract-ocr-frk
 pip install -e .
 ```
 
-Or build the provided image, which layers both onto eScriptorium's:
+Point the app containers at the image, then **restart them**. Entry points are read when a process
+starts, so a container that is already running never notices a newly installed engine.
 
-```sh
-docker build -t escriptorium-tesseract:latest .
-```
+Verify: `GET /api/engines/` lists `tesseract`, and *Tesseract* appears as an engine in the Segment
+dialog.
 
 ## Use
 
-A "model" for this engine is a `.traineddata` language file. Upload one through eScriptorium's normal
-model upload — it will be attributed to tesseract automatically, because kraken cannot read the file
-and tesseract can.
+1. **Add a model.** A "model" for this engine is a `.traineddata` language file. Upload one through
+   eScriptorium's normal model upload — it is attributed to tesseract automatically, because kraken
+   cannot read the file and tesseract can.
+2. **Segment**, choosing *Tesseract* as the engine to use its own layout analysis, or segment with
+   kraken and use tesseract for recognition only.
+3. **Transcribe** with the uploaded language model. The model carries its engine, so nothing else
+   has to be selected.
 
 ## What it does and does not do
 
