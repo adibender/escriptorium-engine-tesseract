@@ -46,8 +46,14 @@ python manage.py test escriptorium_engine_tesseract   # from an eScriptorium che
 The suite is mostly eScriptorium's own `engines.conformance.EngineConformanceMixin`: the contract
 lives there, so this package proves itself against it rather than against our reading of it.
 
-## Known rough edge
+## Relationship to eScriptorium
 
-The package imports `engines.base` from eScriptorium, which is not itself pip-installable, so it can
-only be installed *into* an eScriptorium environment. Upstream should eventually publish the
-interface as a tiny separate distribution so engines can declare a real dependency on it.
+This is a plugin, not a standalone library: it imports the engine contract (`engines.base`) from
+eScriptorium and installs into an eScriptorium environment, which is also the only place it can run.
+That is why `pyproject.toml` declares no dependency on eScriptorium — eScriptorium is deployed as an
+application, not published as a distribution.
+
+The practical consequence is the one noted under *Tests*: the suite needs an eScriptorium checkout on
+the path. If third-party engines should one day be developed and tested on their own, the way there
+is to extract the interface into a small distribution that both sides depend on — a change we would
+be glad to contribute rather than expect.
