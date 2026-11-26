@@ -5,27 +5,63 @@ Tesseract as an eScriptorium engine. Installing this package is the entire integ
 
 ## Install
 
-This is a plugin: it installs *into* an eScriptorium environment, and it needs the tesseract binary
-and at least one language file alongside it — neither of which pip can provide. The provided image
-layers all three onto eScriptorium's own:
+This is a plugin: it installs *into* an eScriptorium environment.
+
+### Expected in the environment
+
+pip installs `pytesseract` and Pillow. Everything else has to be there already:
+
+- eScriptorium **with the engine layer**, i.e. the `feature/engine-layer-upstream` branch of
+  [gitlab.com/adibender-gitlab/escriptorium](https://gitlab.com/adibender-gitlab/escriptorium/-/tree/feature/engine-layer-upstream).
+  That is where the contract this package imports (`engines.base`) lives; upstream eScriptorium does
+  not read the `escriptorium.engines` entry point group yet, so the engine would install there but
+  never appear. The same applies to the image you build on: use one built from that branch.
+- Python ≥ 3.10.
+- the **tesseract binary** (`tesseract-ocr`) on the `PATH`.
+- at least one **language file** (`.traineddata`), e.g. `tesseract-ocr-eng`, `-deu`, `-frk`.
+  These are also what you upload as models (see *Use*).
+
+pip can provide neither the binary nor the language files.
+
+### With Docker (recommended)
+
+The provided image layers the binary, the language files and this package onto eScriptorium's own:
 
 ```sh
-# ESCRIPTORIUM_IMAGE defaults to registry.gitlab.com/scripta/escriptorium:latest
-docker build -t escriptorium-tesseract:latest .
+docker build --build-arg ESCRIPTORIUM_IMAGE=<an eScriptorium image with the engine layer> \
+             -t escriptorium-tesseract:latest .
 ```
 
-By hand, inside an existing eScriptorium environment, it is:
+Then point the app containers at the image.
+
+### With pip, from GitHub
+
+Inside an eScriptorium environment that already has everything listed above:
+
+```sh
+pip install "git+https://github.com/adibender/escriptorium-engine-tesseract"
+```
+
+Append `@<commit>` or `@<tag>` to the URL to pin a version.
+
+Without Docker, install the system packages first, e.g. on Debian/Ubuntu:
 
 ```sh
 apt-get install tesseract-ocr tesseract-ocr-eng tesseract-ocr-deu tesseract-ocr-frk
-pip install -e .
 ```
 
-Point the app containers at the image, then **restart them**. Entry points are read when a process
-starts, so a container that is already running never notices a newly installed engine.
+From a local checkout, `pip install -e .` does the same.
 
-Verify: `GET /api/engines/` lists `tesseract`, and *Tesseract* appears as an engine in the Segment
-dialog.
+### Restart
+
+**Restart every app container after installing**, including the celery workers (`web`,
+`celery-main`, `celery-gpu`, `celery-intensive-inference`). Entry points are read when a process
+starts, so a container that is already running never notices a newly installed engine. The same
+holds after upgrading or uninstalling the package.
+
+### Verify
+
+`GET /api/engines/` lists `tesseract`, and *Tesseract* appears as an engine in the Segment dialog.
 
 ## Use
 
